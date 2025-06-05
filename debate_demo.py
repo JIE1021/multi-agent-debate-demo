@@ -4,9 +4,11 @@
 # 2. 載入套件
 import os
 from autogen import ConversableAgent, GroupChat, GroupChatManager
+from dotenv import load_dotenv
 
 # 3. 設定 OpenAI API 金鑰
-os.environ['OPENAI_API_KEY'] = 'YOUR_OPENAI_API_KEY'  # 請填入你的API金鑰
+load_dotenv()
+os.environ['OPENAI_API_KEY'] = os.getenv('OPENAI_API_KEY')
 
 # 4. 設定 LLM 模型參數
 config_list_gpt = [
