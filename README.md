@@ -37,3 +37,15 @@ $ python debate_demo.py
 
 The program will print the conversation between Agents A and B, managed by the judge agent, followed by a summary declaring the winner.
 
+## Web Search Preview
+
+Agent B now attempts to use the `web_search_preview` tool to gather up-to-date information while debating. If the search API is unavailable, the script falls back to a normal debate without web results.
+
+Example:
+
+```text
+$ python debate_demo.py
+請輸入辯論題目：人工智慧應該開源嗎？
+(Agent B may show results from a web search.)
+```
+
