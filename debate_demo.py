@@ -1,5 +1,5 @@
 # 1. 安裝套件
-# pip install pyautogen python-dotenv
+pip install pyautogen python-dotenv
 
 # 2. 載入套件
 import os
