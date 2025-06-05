@@ -1,100 +1,91 @@
 # -*- coding: utf-8 -*-
 """
-Multi-Agent Debate - 中文題目 / 中文辯論 版本（官方 SDK，B 強制搜尋）
-====================================================================
+Multi‑Agent Debate ‑ 中文題目 / 中文辯論 版本
+------------------------------------------------
+使用說明
+========
+1. 在專案根目錄建立 `.env` 檔，內容：
+   ```
+   OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxxxxxx
+   ```
+2. 於命令列或 Jupyter Notebook 執行：
+   ```bash
+   python multi_agent_debate.py
+   ```
+   依提示輸入「中文」辯論題目，例如：
+   > 紅蘋果和青蘋果哪種更營養？
 
-⚙️ 需求摘要
------------
-* **僅** 用 `web_search_preview` 內建工具；其他工具停用。
-* **Agent B** 必須在每輪回答時「一定」呼叫搜尋 → 透過
-  `tool_choice` 放進 **config_list**（這是 AutoGen v0.4+ 接收的地方），
-  而非 llm_config 頂層，才能通過 Pydantic 驗證。
-* 需 `openai>=1.23.0`, `autogen-agentchat>=0.4.1`。
+程式流程
+========
+* 動態建立三個 Agent：
+  - **Agent A**：正方（支持命題）
+  - **Agent B**：反方（反對命題）
+  - **Judge** ：裁判（最後必須說 **「That's enough!」** 並宣佈勝負）
+* 預設 4 回合（A→B→A→B→Judge）。可透過 `rounds` 參數調整。
+* 支援 `run_debate(topic, rounds=5)` 反覆或批次呼叫。
 """
 
 # ------------------------------------------------------------
-# 1. 安裝（僅首次）
+# 1. 安裝套件（第一次執行才需要）
 # ------------------------------------------------------------
-#pip install -U "openai>=1.23.0" "autogen-agentchat>=0.4.1"
+# 在 Jupyter Notebook 可直接執行，也可於終端機手動安裝
+#!pip install "pyautogen[openai]" python-dotenv -q
 
 # ------------------------------------------------------------
 # 2. 載入套件
 # ------------------------------------------------------------
-import os, openai
-try:
-    from dotenv import load_dotenv
-except ImportError:  # pragma: no cover - optional dependency
-    def load_dotenv(*_args, **_kwargs):
-        """Fallback if python-dotenv isn't installed."""
-        pass
+import os
+from dotenv import load_dotenv
 from autogen import ConversableAgent, GroupChat, GroupChatManager
 
 # ------------------------------------------------------------
-# 3. API Key
+# 3. 讀取 OpenAI API Key
 # ------------------------------------------------------------
 load_dotenv()
-openai.api_key = os.getenv("OPENAI_API_KEY")
-assert openai.api_key, "❌ 找不到 OPENAI_API_KEY，請在 .env 設定！"
+API_KEY = os.getenv("OPENAI_API_KEY")
+assert API_KEY, "❌ 找不到 OPENAI_API_KEY，請在 .env 設定！"
 
 # ------------------------------------------------------------
-# 4. LLM 基本設定
+# 4. 共用 LLM 設定（可改 gpt‑3.5‑turbo 節省成本）
 # ------------------------------------------------------------
-config_list1 = [{"model": "gpt-4o"}]  # A / Judge 使用
-# B 使用：同時塞入 tool_choice => required
-config_list2 = [{
-    "model": "gpt-4o",
-    "tool_choice": {"type": "required", "id": "web_search_preview"}
-}]
-config_list3 = [{"model": "gpt-4o"}]
-
+config_list1 = [{"model": "gpt-4o", "api_key": API_KEY}]
+config_list2 = [{"model": "gpt-4o", "api_key": API_KEY}]
+config_list3 = [{"model": "gpt-4.1", "api_key": API_KEY}]
 # ------------------------------------------------------------
-# 5. 官方 WebSearch 工具字典
-# ------------------------------------------------------------
-WEB_SEARCH_DICT = {
-    "type": "web_search_preview",
-    "user_location": {"type": "approximate", "country": "TW"},
-    "search_context_size": "high"
-}
-
-# ------------------------------------------------------------
-# 6. 辯論主程式
+# 5. 動態建立並執行辯論
 # ------------------------------------------------------------
 
-def run_debate(topic: str, rounds: int = 10):
+def run_debate(topic: str, rounds: int = 7, model_cfg=None):
+    """根據題目建立三個中文 Agent 並執行辯論，回傳 ChatResult"""
     if not topic.strip():
         raise ValueError("題目不能空白！")
 
-    sys_A = f"你是 **Agent A（正方）**，支持：「{topic}」。提出論點並反駁 B。"
-    sys_B = f"你是 **Agent B（反方）**，反對：「{topic}」。提出論點並反駁 A。"
+    model_cfg = model_cfg or config_list1
+
+    # 5‑1. 生成中文 system message
+    sys_A = (
+        "你是 **Agent A（正方）**。你的任務是支持以下命題，提出有力論點並反駁 Agent B：\n\n"
+        f"「{topic}」"
+    )
+    sys_B = (
+        "你是 **Agent B（反方）**。你的任務是否定/反對以下命題，提出有力論點並反駁 Agent A：\n\n"
+        f"「{topic}」"
+    )
     sys_J = (
-        "你是裁判，主持辯論並依據論點強度決定勝負。最後必須輸出『That's enough!』再宣佈勝負。"
+        "你是裁判。請主持辯論、必要時要求澄清，最後根據論點強度宣佈勝負。"
+        "結尾務必輸出 **完全一致** 的句子：『That's enough!』，接著說明誰獲勝。"
     )
 
-    agent_A = ConversableAgent(
-        name="A",
-        system_message=sys_A,
-        llm_config={"config_list": config_list1},
-        human_input_mode="NEVER",
-    )
-
-    agent_B = ConversableAgent(
-        name="B",
-        system_message=sys_B,
-        llm_config={
-            "config_list": config_list2,
-            "tools": [WEB_SEARCH_DICT],
-        },
-        human_input_mode="NEVER",
-    )
-
-    judge = ConversableAgent(
-        name="Judge",
-        system_message=sys_J,
-        llm_config={"config_list": config_list3},
-        human_input_mode="NEVER",
+    # 5‑2. 建立三個代理人
+    agent_A = ConversableAgent("A", sys_A, llm_config={"config_list": config_list1}, human_input_mode="NEVER")
+    agent_B = ConversableAgent("B", sys_B, llm_config={"config_list": config_list2}, human_input_mode="NEVER")
+    judge   = ConversableAgent(
+        "Judge", sys_J,
+        llm_config={"config_list": config_list3}, human_input_mode="NEVER",
         is_termination_msg=lambda m: "That's enough!" in m["content"],
     )
 
+    # 5‑3. 組群聊
     chat = GroupChat(
         agents=[agent_A, agent_B, judge],
         messages=[],
@@ -102,24 +93,33 @@ def run_debate(topic: str, rounds: int = 10):
         speaker_selection_method="auto",
         max_round=rounds,
     )
-    manager = GroupChatManager(groupchat=chat, llm_config={"config_list": config_list1})
+    manager = GroupChatManager(groupchat=chat, llm_config={"config_list": model_cfg})
 
+    # 5‑4. 中文開場白 (含規則)
     opening = (
-        "這場辯論將產生一位獲勝者，直到裁判說出『That's enough!』結束。\n\n"
-        f"【題目】{topic}"
+        "這場辯論將作為課堂範例，必須產生一位獲勝者。\n"
+        "辯論持續進行，直到裁判下結論並說出『That's enough!』。\n\n"
+        f"【辯論題目】{topic}"
     )
-    return judge.initiate_chat(amanager, message=opening, summary_method="reflection_with_llm")
+
+    # 5‑5. 啟動辯論
+    return judge.initiate_chat(
+        manager, message=opening, summary_method="reflection_with_llm"
+    )
 
 # ------------------------------------------------------------
-# 7. CLI
+# 6. CLI / Notebook 入口點
 # ------------------------------------------------------------
 if __name__ == "__main__":
     user_topic = input("請輸入辯論題目：").strip()
-    result = run_debate(user_topic, rounds=10)
+    # ↓ 這行呼叫 run_debate，rounds=4 表示辯論來回 4 回合
+    result = run_debate(user_topic, rounds=6)
 
+    # 7. 列印逐字稿
     print("\n================= 辯論逐字稿 =================")
     for i, m in enumerate(result.chat_history, 1):
         print(f"\n=== #{i} {m['name']} ({m['role']}) ===\n{m['content']}\n")
 
+    # 8. 列印裁判總結
     print("\n================= 裁判總結 =================\n")
     print(result.summary)
