@@ -21,7 +21,12 @@ Multi-Agent Debate - 中文題目 / 中文辯論 版本（官方 SDK，B 強制�
 # 2. 載入套件
 # ------------------------------------------------------------
 import os, openai
-from dotenv import load_dotenv
+try:
+    from dotenv import load_dotenv
+except ImportError:  # pragma: no cover - optional dependency
+    def load_dotenv(*_args, **_kwargs):
+        """Fallback if python-dotenv isn't installed."""
+        pass
 from autogen import ConversableAgent, GroupChat, GroupChatManager
 
 # ------------------------------------------------------------
