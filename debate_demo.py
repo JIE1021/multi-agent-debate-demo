@@ -78,7 +78,24 @@ def run_debate(topic: str, rounds: int = 7, model_cfg=None):
 
     # 5‑2. 建立三個代理人
     agent_A = ConversableAgent("A", sys_A, llm_config={"config_list": config_list1}, human_input_mode="NEVER")
-    agent_B = ConversableAgent("B", sys_B, llm_config={"config_list": config_list2}, human_input_mode="NEVER")
+    # Agent B tries to use web_search_preview for up-to-date information.
+    # If the tool fails to initialize, fall back to basic configuration.
+    try:
+        agent_B = ConversableAgent(
+            "B",
+            sys_B,
+            llm_config={
+                "config_list": config_list2,
+                "tools": [{"type": "web_search_preview"}],
+                "tool_choice": "auto",
+            },
+            human_input_mode="NEVER",
+        )
+    except Exception as e:  # pragma: no cover - tool may not be available
+        print(f"[警告] 無法啟用網路搜尋工具：{e}")
+        agent_B = ConversableAgent(
+            "B", sys_B, llm_config={"config_list": config_list2}, human_input_mode="NEVER"
+        )
     judge   = ConversableAgent(
         "Judge", sys_J,
         llm_config={"config_list": config_list3}, human_input_mode="NEVER",
