@@ -108,7 +108,7 @@ def run_debate(topic: str, rounds: int = 10):
         "這場辯論將產生一位獲勝者，直到裁判說出『That's enough!』結束。\n\n"
         f"【題目】{topic}"
     )
-    return judge.initiate_chat(manager, message=opening, summary_method="reflection_with_llm")
+    return judge.initiate_chat(amanager, message=opening, summary_method="reflection_with_llm")
 
 # ------------------------------------------------------------
 # 7. CLI
