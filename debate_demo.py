@@ -78,13 +78,10 @@ group_chat_manager = GroupChatManager(
 )
 
 # 8. 啟動辯論
+debate_topic = input("請輸入辯論問題：")
 chat_result = judge_agent.initiate_chat(
     group_chat_manager,
-    message=(
-        "This debate will be used as a sample in a university class. "
-        "A winner must be decided. The debate will continue until the facilitator reaches a conclusion on "
-        "whether Elon Musk or Sam Altman is a better leader."
-    ),
+    message=debate_topic,
     summary_method="reflection_with_llm",
 )
 
