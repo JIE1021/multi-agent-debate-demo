@@ -1,6 +1,6 @@
 # 1. 安裝套件
-pip install pyautogen python-dotenv
-
+#pip install "pyautogen[openai]" python-dotenv
+#pip install ag2[openai]
 # 2. 載入套件
 import os
 from autogen import ConversableAgent, GroupChat, GroupChatManager
