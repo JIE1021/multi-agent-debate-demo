@@ -10,7 +10,7 @@ Multi‑Agent Debate ‑ 中文題目 / 中文辯論 版本
    ```
 2. 於命令列或 Jupyter Notebook 執行：
    ```bash
-   python multi_agent_debate.py
+   python debate_demo.py
    ```
    依提示輸入「中文」辯論題目，例如：
    > 紅蘋果和青蘋果哪種更營養？
@@ -37,6 +37,33 @@ Multi‑Agent Debate ‑ 中文題目 / 中文辯論 版本
 import os
 from dotenv import load_dotenv
 from autogen import ConversableAgent, GroupChat, GroupChatManager
+
+# web_search_preview tool specification required by the OpenAI API
+web_search_preview = {
+    "name": "web_search_preview",
+    "description": "Search the web and return relevant results.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "query": {
+                "type": "string",
+                "description": "Search query string",
+            },
+            "user_location": {
+                "type": "object",
+                "properties": {
+                    "type": {"type": "string", "enum": ["approximate"]},
+                    "country": {"type": "string"},
+                },
+            },
+            "search_context_size": {
+                "type": "string",
+                "enum": ["low", "medium", "high"],
+            },
+        },
+        "required": ["query"],
+    },
+}
 
 # ------------------------------------------------------------
 # 3. 讀取 OpenAI API Key
@@ -86,7 +113,7 @@ def run_debate(topic: str, rounds: int = 7, model_cfg=None):
             sys_B,
             llm_config={
                 "config_list": config_list2,
-                "tools": [{"type": "web_search_preview"}],
+                "tools": [{"type": "function", "function": web_search_preview}],
             },
             human_input_mode="NEVER",
         )
@@ -128,7 +155,7 @@ def run_debate(topic: str, rounds: int = 7, model_cfg=None):
 # ------------------------------------------------------------
 if __name__ == "__main__":
     user_topic = input("請輸入辯論題目：").strip()
-    # ↓ 這行呼叫 run_debate，rounds=4 表示辯論來回 4 回合
+    # ↓ 這行呼叫 run_debate，rounds=6 表示辯論來回 6 回合
     result = run_debate(user_topic, rounds=6)
 
     # 7. 列印逐字稿

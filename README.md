@@ -7,7 +7,7 @@ This repository provides a small demo showing how to build a debate between two 
 Install the required packages:
 
 ```bash
-pip install openai autogen-agentchat python-dotenv
+pip install -r requirements.txt
 ```
 
 ## API Key
