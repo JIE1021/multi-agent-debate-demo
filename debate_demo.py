@@ -1,92 +1,120 @@
-# 1. 安裝套件
-#pip install "pyautogen[openai]" python-dotenv
-#pip install ag2[openai]
+# -*- coding: utf-8 -*-
+"""
+Multi-Agent Debate - 中文題目 / 中文辯論 版本（官方 SDK，B 強制搜尋）
+====================================================================
+
+⚙️ 需求摘要
+-----------
+* **僅** 用 `web_search_preview` 內建工具；其他工具停用。
+* **Agent B** 必須在每輪回答時「一定」呼叫搜尋 → 透過
+  `tool_choice` 放進 **config_list**（這是 AutoGen v0.4+ 接收的地方），
+  而非 llm_config 頂層，才能通過 Pydantic 驗證。
+* 需 `openai>=1.23.0`, `autogen-agentchat>=0.4.1`。
+"""
+
+# ------------------------------------------------------------
+# 1. 安裝（僅首次）
+# ------------------------------------------------------------
+#pip install -U "openai>=1.23.0" "autogen-agentchat>=0.4.1"
+
+# ------------------------------------------------------------
 # 2. 載入套件
-import os
-from autogen import ConversableAgent, GroupChat, GroupChatManager
+# ------------------------------------------------------------
+import os, openai
 from dotenv import load_dotenv
+from autogen import ConversableAgent, GroupChat, GroupChatManager
 
-# 3. 設定 OpenAI API 金鑰
+# ------------------------------------------------------------
+# 3. API Key
+# ------------------------------------------------------------
 load_dotenv()
-os.environ['OPENAI_API_KEY'] = os.getenv('OPENAI_API_KEY')
+openai.api_key = os.getenv("OPENAI_API_KEY")
+assert openai.api_key, "❌ 找不到 OPENAI_API_KEY，請在 .env 設定！"
 
-# 4. 設定 LLM 模型參數
-config_list_gpt = [
-    {
-        "model": "gpt-4o-mini",
-        "api_key": os.getenv("OPENAI_API_KEY")
-    }
-]
-config_list_claude = [
-    {
-        "model": "gpt-3.5-turbo",
-        "api_key": os.getenv("OPENAI_API_KEY")
-    }
-]
+# ------------------------------------------------------------
+# 4. LLM 基本設定
+# ------------------------------------------------------------
+config_list1 = [{"model": "gpt-4o"}]  # A / Judge 使用
+# B 使用：同時塞入 tool_choice => required
+config_list2 = [{
+    "model": "gpt-4o",
+    "tool_choice": {"type": "required", "id": "web_search_preview"}
+}]
+config_list3 = [{"model": "gpt-4o"}]
 
-# 5. 建立三個代理人（兩方＋評審）
-elon_musk_agent = ConversableAgent(
-    name="elon_musk_fan",
-    system_message=(
-        "You are a person who admires Elon Musk and believes he is the best leader in the world. "
-        "You should speak passionately about why Elon Musk is an exemplary leader and highlight his accomplishments."
-    ),
-    llm_config={"config_list": config_list_claude},
-    human_input_mode="NEVER",
-)
-sam_altman_agent = ConversableAgent(
-    name="sam_altman_fan",
-    system_message=(
-        "You are a person who admires Sam Altman and believes he is the best leader in the world. "
-        "You should speak passionately about why Sam Altman is an exemplary leader and highlight his accomplishments."
-    ),
-    llm_config={"config_list": config_list_gpt},
-    human_input_mode="NEVER",
-)
-judge_agent = ConversableAgent(
-    name="judge_Agent",
-    system_message=(
-        "You are acting as the ultimate facilitator. Your job is to guide the debate between the two "
-        "and declare a winner based on who makes the most convincing argument. "
-        "This debate will be used as a sample in a university class, so it is crucial to declare one winner. "
-        "Once a clear conclusion is reached, you must declare 'That's enough!' and announce the winner. "
-        "The debate cannot end without this phrase, so make sure to include it."
-    ),
-    llm_config={"config_list": config_list_gpt},
-    human_input_mode="NEVER",
-    is_termination_msg=lambda msg: "That's enough!" in msg["content"],
-)
-elon_musk_agent.description = "The ultimate Elon Musk fan"
-sam_altman_agent.description = "The ultimate Sam Altman fan"
-judge_agent.description = "The facilitator who decides the debate winner"
+# ------------------------------------------------------------
+# 5. 官方 WebSearch 工具字典
+# ------------------------------------------------------------
+WEB_SEARCH_DICT = {
+    "type": "web_search_preview",
+    "user_location": {"type": "approximate", "country": "TW"},
+    "search_context_size": "high"
+}
 
-# 6. 組成群組對話（GroupChat）
-group_chat = GroupChat(
-    agents=[elon_musk_agent, sam_altman_agent, judge_agent],
-    messages=[],
-    send_introductions=True,
-    speaker_selection_method="auto",
-    max_round=5
-)
+# ------------------------------------------------------------
+# 6. 辯論主程式
+# ------------------------------------------------------------
 
-# 7. 設定群組對話管理者
-group_chat_manager = GroupChatManager(
-    groupchat=group_chat,
-    llm_config={"config_list": [
-        {"model": "gpt-4o-mini", "api_key": os.environ["OPENAI_API_KEY"]}
-    ]},
-)
+def run_debate(topic: str, rounds: int = 10):
+    if not topic.strip():
+        raise ValueError("題目不能空白！")
 
-# 8. 啟動辯論
-chat_result = judge_agent.initiate_chat(
-    group_chat_manager,
-    message=(
-        "This debate will be used as a sample in a university class. "
-        "A winner must be decided. The debate will continue until the facilitator reaches a conclusion on "
-        "whether Elon Musk or Sam Altman is a better leader."
-    ),
-    summary_method="reflection_with_llm",
-)
+    sys_A = f"你是 **Agent A（正方）**，支持：「{topic}」。提出論點並反駁 B。"
+    sys_B = f"你是 **Agent B（反方）**，反對：「{topic}」。提出論點並反駁 A。"
+    sys_J = (
+        "你是裁判，主持辯論並依據論點強度決定勝負。最後必須輸出『That's enough!』再宣佈勝負。"
+    )
 
-# 9. 印出辯論結果（可選）
-print(chat_result)
+    agent_A = ConversableAgent(
+        name="A",
+        system_message=sys_A,
+        llm_config={"config_list": config_list1},
+        human_input_mode="NEVER",
+    )
+
+    agent_B = ConversableAgent(
+        name="B",
+        system_message=sys_B,
+        llm_config={
+            "config_list": config_list2,
+            "tools": [WEB_SEARCH_DICT],
+        },
+        human_input_mode="NEVER",
+    )
+
+    judge = ConversableAgent(
+        name="Judge",
+        system_message=sys_J,
+        llm_config={"config_list": config_list3},
+        human_input_mode="NEVER",
+        is_termination_msg=lambda m: "That's enough!" in m["content"],
+    )
+
+    chat = GroupChat(
+        agents=[agent_A, agent_B, judge],
+        messages=[],
+        send_introductions=True,
+        speaker_selection_method="auto",
+        max_round=rounds,
+    )
+    manager = GroupChatManager(groupchat=chat, llm_config={"config_list": config_list1})
+
+    opening = (
+        "這場辯論將產生一位獲勝者，直到裁判說出『That's enough!』結束。\n\n"
+        f"【題目】{topic}"
+    )
+    return judge.initiate_chat(manager, message=opening, summary_method="reflection_with_llm")
+
+# ------------------------------------------------------------
+# 7. CLI
+# ------------------------------------------------------------
+if __name__ == "__main__":
+    user_topic = input("請輸入辯論題目：").strip()
+    result = run_debate(user_topic, rounds=10)
+
+    print("\n================= 辯論逐字稿 =================")
+    for i, m in enumerate(result.chat_history, 1):
+        print(f"\n=== #{i} {m['name']} ({m['role']}) ===\n{m['content']}\n")
+
+    print("\n================= 裁判總結 =================\n")
+    print(result.summary)
