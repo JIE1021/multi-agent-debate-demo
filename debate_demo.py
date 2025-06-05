@@ -87,7 +87,6 @@ def run_debate(topic: str, rounds: int = 7, model_cfg=None):
             llm_config={
                 "config_list": config_list2,
                 "tools": [{"type": "web_search_preview"}],
-                "tool_choice": "auto",
             },
             human_input_mode="NEVER",
         )
