@@ -10,7 +10,7 @@ Multi‑Agent Debate ‑ 中文題目 / 中文辯論 版本
    ```
 2. 於命令列或 Jupyter Notebook 執行：
    ```bash
-   python debate_demo.py
+   python multi_agent_debate.py
    ```
    依提示輸入「中文」辯論題目，例如：
    > 紅蘋果和青蘋果哪種更營養？
@@ -65,6 +65,14 @@ web_search_preview = {
     },
 }
 
+def _web_search_preview(query: str, user_location: dict | None = None, search_context_size: str = "low") -> str:
+    """Return a placeholder string for the given search query.
+
+    This demo does not have network access. The function simply echoes the query
+    back to the caller so the debate can proceed without errors.
+    """
+    return f"[網路搜尋結果：{query}]"
+
 # ------------------------------------------------------------
 # 3. 讀取 OpenAI API Key
 # ------------------------------------------------------------
@@ -76,13 +84,13 @@ assert API_KEY, "❌ 找不到 OPENAI_API_KEY，請在 .env 設定！"
 # 4. 共用 LLM 設定（可改 gpt‑3.5‑turbo 節省成本）
 # ------------------------------------------------------------
 config_list1 = [{"model": "gpt-4o", "api_key": API_KEY}]
-config_list2 = [{"model": "gpt-4o", "api_key": API_KEY}]
+config_list2 = [{"model": "gpt-4.1", "api_key": API_KEY}]
 config_list3 = [{"model": "gpt-4.1", "api_key": API_KEY}]
 # ------------------------------------------------------------
 # 5. 動態建立並執行辯論
 # ------------------------------------------------------------
-
-def run_debate(topic: str, rounds: int = 7, model_cfg=None):
+#回合數要+1提供給裁判解說，這邊7 最末端就要是6回合
+def run_debate(topic: str, rounds: int = 17, model_cfg=None):
     """根據題目建立三個中文 Agent 並執行辯論，回傳 ChatResult"""
     if not topic.strip():
         raise ValueError("題目不能空白！")
@@ -95,11 +103,11 @@ def run_debate(topic: str, rounds: int = 7, model_cfg=None):
         f"「{topic}」"
     )
     sys_B = (
-        "你是 **Agent B（反方）**。你的任務是否定/反對以下命題，提出有力論點並反駁 Agent A：\n\n"
+        "你是 **Agent B（反方）**。你的任務是確定A的觀點是否正確，否則要根據網路的資料，提出有數據的論點並反駁 Agent A：\n\n"
         f"「{topic}」"
     )
     sys_J = (
-        "你是裁判。請主持辯論、必要時要求澄清，最後根據論點強度宣佈勝負。"
+        "你是裁判。雙方達成共識後，請主持辯論、必要時要求澄清，最後根據論點強度宣佈勝負。"
         "結尾務必輸出 **完全一致** 的句子：『That's enough!』，接著說明誰獲勝。"
     )
 
@@ -115,6 +123,7 @@ def run_debate(topic: str, rounds: int = 7, model_cfg=None):
                 "config_list": config_list2,
                 "tools": [{"type": "function", "function": web_search_preview}],
             },
+            function_map={"web_search_preview": _web_search_preview},
             human_input_mode="NEVER",
         )
     except Exception as e:  # pragma: no cover - tool may not be available
@@ -155,8 +164,8 @@ def run_debate(topic: str, rounds: int = 7, model_cfg=None):
 # ------------------------------------------------------------
 if __name__ == "__main__":
     user_topic = input("請輸入辯論題目：").strip()
-    # ↓ 這行呼叫 run_debate，rounds=6 表示辯論來回 6 回合
-    result = run_debate(user_topic, rounds=6)
+    # ↓ 這行呼叫 run_debate，rounds=X 表示辯論來回 X 回合
+    result = run_debate(user_topic, rounds=16)
 
     # 7. 列印逐字稿
     print("\n================= 辯論逐字稿 =================")
