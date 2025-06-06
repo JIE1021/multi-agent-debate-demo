@@ -29,7 +29,7 @@ Multi‑Agent Debate ‑ 中文題目 / 中文辯論 版本
 # 1. 安裝套件（第一次執行才需要）
 # ------------------------------------------------------------
 # 在 Jupyter Notebook 可直接執行，也可於終端機手動安裝
-#!pip install "pyautogen[openai]" python-dotenv -q
+#pip install "pyautogen[openai]" python-dotenv -q
 
 # ------------------------------------------------------------
 # 2. 載入套件
