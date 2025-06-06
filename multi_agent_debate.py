@@ -21,8 +21,8 @@ Multi‑Agent Debate ‑ 中文題目 / 中文辯論 版本
   - **Agent A**：正方（支持命題）
   - **Agent B**：反方（反對命題）
   - **Judge** ：裁判（最後必須說 **「That's enough!」** 並宣佈勝負）
-* 預設 4 回合（A→B→A→B→Judge）。可透過 `rounds` 參數調整。
-* 支援 `run_debate(topic, rounds=5)` 反覆或批次呼叫。
+* 預設 X 回合（A→B→A→B→Judge）。可透過 `rounds` 參數調整。
+* 支援 `run_debate(topic, rounds=X)` 反覆或批次呼叫。
 """
 
 # ------------------------------------------------------------
@@ -89,7 +89,7 @@ config_list3 = [{"model": "gpt-4.1", "api_key": API_KEY}]
 # ------------------------------------------------------------
 # 5. 動態建立並執行辯論
 # ------------------------------------------------------------
-#回合數要+1提供給裁判解說，這邊7 最末端就要是6回合
+#回合數要留下1回合提供給裁判解說，這邊X 最末端就要是X-1回合
 def run_debate(topic: str, rounds: int = 17, model_cfg=None):
     """根據題目建立三個中文 Agent 並執行辯論，回傳 ChatResult"""
     if not topic.strip():
